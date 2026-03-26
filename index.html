@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="theme-color" content="#0B0B0F" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <title>Man-Date | Plan Something Better</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <style>
+      * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+      body { margin: 0; padding: 0; background: #0B0B0F; font-family: 'DM Sans', sans-serif; }
+      input[type="date"], select { color-scheme: dark; }
+      @keyframes pulse { 0%,100%{opacity:0.4} 50%{opacity:1} }
+      @keyframes slideUp { from{opacity:0;transform:translateY(20px)} to{opacity:1;transform:translateY(0)} }
+      .su { animation: slideUp 0.4s ease forwards; }
+      .d1{animation-delay:0.05s;opacity:0}
+      .d2{animation-delay:0.1s;opacity:0}
+      .d3{animation-delay:0.15s;opacity:0}
+      .d4{animation-delay:0.2s;opacity:0}
+      .d5{animation-delay:0.25s;opacity:0}
+      .d6{animation-delay:0.3s;opacity:0}
+      .d7{animation-delay:0.35s;opacity:0}
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
