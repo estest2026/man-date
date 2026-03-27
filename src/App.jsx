@@ -300,7 +300,7 @@ export default function App() {
     try {
       var ctrl = new AbortController();
       var tid = setTimeout(function() { ctrl.abort(); }, 5000);
-      var url = "https://app.ticketmaster.com/discovery/v2/events.json?apikey=" + TM_KEY + "&latlong=" + SEA_LAT + "," + SEA_LNG + "&radius=30&unit=miles&localStartDateTime=" + dateStr + "T00:00:00&localEndDateTime=" + dateStr + "T23:59:59&size=20&sort=date,asc";
+      var url = "https://app.ticketmaster.com/discovery/v2/events.json?apikey=" + TM_KEY + "&latlong=" + SEA_LAT + "," + SEA_LNG + "&radius=30&unit=miles&localStartDateTime=" + dateStr + "T00:00:00&localEndDateTime=" + dateStr + "T23:59:59&size=50&sort=date,asc";
       var res = await fetch(url, { signal: ctrl.signal });
       clearTimeout(tid);
       var data = await res.json();
@@ -327,8 +327,17 @@ export default function App() {
         var isApproved = inSportsVenue || inShowVenue;
         if (!isApproved) return null;
 
-        // Categorize as sports or liveshow
-        var category = (isSport || inSportsVenue) ? "sports" : "liveshow";
+        // Categorize: use Ticketmaster segment first, venue as fallback
+        var category;
+        if (isSport) {
+          category = "sports";
+        } else if (isMusic || isArts || isFamily) {
+          category = "liveshow";
+        } else if (inSportsVenue) {
+          category = "sports";
+        } else {
+          category = "liveshow";
+        }
 
         return {
           name: e.name, neighborhood: venueName || "Seattle",
