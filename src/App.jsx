@@ -321,11 +321,26 @@ export default function App() {
         var pr = (e.priceRanges && e.priceRanges[0]) ? e.priceRanges[0].min : null;
         var isTeam = TEAMS.some(function(t) { return (e.name || "").toLowerCase().includes(t.toLowerCase()); });
 
-        // Filter by venue whitelist
-        var inSportsVenue = VENUE_WHITELIST.sports.some(function(wv) { return venueName.toLowerCase().includes(wv.toLowerCase()) || wv.toLowerCase().includes(venueName.toLowerCase()); });
-        var inShowVenue = VENUE_WHITELIST.shows.some(function(wv) { return venueName.toLowerCase().includes(wv.toLowerCase()) || wv.toLowerCase().includes(venueName.toLowerCase()); });
+        // Filter by venue whitelist (now objects with name + neighborhood)
+        var matchedSportsVenue = null;
+        var matchedShowVenue = null;
+        VENUE_WHITELIST.sports.forEach(function(wv) {
+          if (venueName.toLowerCase().includes(wv.name.toLowerCase()) || wv.name.toLowerCase().includes(venueName.toLowerCase())) {
+            matchedSportsVenue = wv;
+          }
+        });
+        VENUE_WHITELIST.shows.forEach(function(wv) {
+          if (venueName.toLowerCase().includes(wv.name.toLowerCase()) || wv.name.toLowerCase().includes(venueName.toLowerCase())) {
+            matchedShowVenue = wv;
+          }
+        });
+        var inSportsVenue = matchedSportsVenue !== null;
+        var inShowVenue = matchedShowVenue !== null;
         var isApproved = inSportsVenue || inShowVenue;
         if (!isApproved) return null;
+
+        // Use venue neighborhood from whitelist for clustering
+        var venueHood = (matchedShowVenue && matchedShowVenue.neighborhood) || (matchedSportsVenue && matchedSportsVenue.neighborhood) || venueName;
 
         // Categorize: use Ticketmaster segment first, venue as fallback
         var category;
@@ -341,6 +356,7 @@ export default function App() {
 
         return {
           name: e.name, neighborhood: venueName || "Seattle",
+          venueNeighborhood: venueHood,
           desc: (isSport ? "🏟️ " : isMusic ? "🎵 " : isArts ? "🎭 " : "🎤 ") + e.name + (venueName ? " at " + venueName : "") + ". " + (pr ? "From $" + Math.round(pr) : ""),
           kidFriendly: isFam, type: category,
           time: tm, emoji: isSport ? "🏟️" : isMusic ? "🎵" : isArts ? "🎭" : "🎤",
@@ -429,21 +445,26 @@ export default function App() {
     });
     var filteredActs = acts.filter(function(a) { return !isF || a.kidFriendly; });
 
-    // Pick a neighborhood cluster from audience-appropriate spots only
+    // Pick initial cluster — will be re-anchored if a live event is injected
     var eligibleSpots = filteredBars.concat(filteredRestos).concat(filteredActs);
     var randomAnchor = eligibleSpots[Math.floor(Math.random() * eligibleSpots.length)];
     var cluster = getClusterForNeighborhood(randomAnchor.neighborhood);
 
-    // Filter to cluster — check viability AFTER audience filtering
-    function clusterFilter(arr) {
-      if (!cluster) return arr;
-      var filtered = arr.filter(function(item) { return isInCluster(item.neighborhood, cluster); });
-      return filtered.length >= 2 ? filtered : arr;
+    // Cluster filter helper — strict: only returns cluster matches, no fallback to full DB
+    function clusterFilter(arr, clusterKey) {
+      if (!clusterKey) return arr;
+      var filtered = arr.filter(function(item) { return isInCluster(item.neighborhood, clusterKey); });
+      return filtered.length >= 1 ? filtered : arr;
     }
 
-    var cBars = clusterFilter(filteredBars);
-    var cRestos = clusterFilter(filteredRestos);
-    var cActs = clusterFilter(filteredActs);
+    // Apply initial clustering
+    function applyClustering() {
+      cBars = clusterFilter(filteredBars, cluster);
+      cRestos = clusterFilter(filteredRestos, cluster);
+      cActs = clusterFilter(filteredActs, cluster);
+    }
+    var cBars, cRestos, cActs;
+    applyClustering();
 
     // Determine active moods
     var moodOrder = ["outdoor", "water", "picnic", "drinks", "food", "activity", "movie", "liveshow", "sports", "stayin"];
@@ -488,15 +509,18 @@ export default function App() {
       var teamGames = sportsEvents.filter(function(e) { return e.isTeam; });
       var sportsPick = teamGames[0] || sportsEvents[0];
       if (sportsPick) {
-        // Sports builds the whole evening around the game
         stops.push({
           name: sportsPick.name, type: "sports", emoji: "🏟️",
           time: sportsPick.time || formatTime(hr), neighborhood: sportsPick.neighborhood,
           description: sportsPick.desc, isLive: true, url: sportsPick.url,
         });
         hr += 3;
-        // Remove sports and activity from remaining moods — game IS the activity
         active = active.filter(function(m) { return m !== "sports" && m !== "activity"; });
+        // Re-anchor cluster around the venue
+        if (sportsPick.venueNeighborhood) {
+          cluster = getClusterForNeighborhood(sportsPick.venueNeighborhood);
+          applyClustering();
+        }
       }
     }
 
@@ -512,6 +536,11 @@ export default function App() {
         });
         hr += 2.5;
         active = active.filter(function(m) { return m !== "liveshow"; });
+        // Re-anchor cluster around the venue
+        if (showPick.venueNeighborhood) {
+          cluster = getClusterForNeighborhood(showPick.venueNeighborhood);
+          applyClustering();
+        }
       }
     }
 
@@ -680,6 +709,7 @@ export default function App() {
       stops: finalStops,
       budget: budget,
       season: season,
+      cluster: cluster,
     };
   }
 
@@ -706,7 +736,8 @@ export default function App() {
       var aud = who === "partner" ? "date night with wife" : who === "friends" ? "guys night with buddies" : "family night with kids";
       var evStr = events.length > 0 ? "\nLIVE EVENTS: " + JSON.stringify(events.slice(0, 5).map(function(e) { return { name: e.name, venue: e.neighborhood, time: e.time }; })) : "";
       var wxStr = wx ? "\nWEATHER: " + wx.label + ", " + wx.hi + "F" + (wx.isRainy ? " RAINY" : "") : "";
-      var prompt = "You are Man-Date for Seattle dads. Build a " + moods.join("+") + " plan for " + aud + ". Time: " + (timeOfDay || "evening") + "." + wxStr + evStr + "\nPick 2-4 stops. Fun descriptions. ONLY JSON:\n{\"title\":\"3-5 words\",\"tagline\":\"witty one-liner\",\"stops\":[{\"name\":\"Venue\",\"type\":\"food|drinks|activity|movie|liveshow|sports|outdoor|water|picnic|stayin\",\"emoji\":\"emoji\",\"time\":\"7:00 PM\",\"neighborhood\":\"Area\",\"description\":\"1-2 sentences\",\"isLive\":false}]}";
+      var clusterHoods = localPlan.cluster ? getClusterNeighborhoods(localPlan.cluster).join(", ") : "any Seattle neighborhood";
+      var prompt = "You are Man-Date for Seattle dads. Build a " + moods.join("+") + " plan for " + aud + ". Time: " + (timeOfDay || "evening") + "." + wxStr + evStr + "\nIMPORTANT: All stops MUST be in these neighborhoods: " + clusterHoods + ". Do NOT mix neighborhoods from different parts of the city.\nPick 2-4 stops. Fun descriptions. ONLY JSON:\n{\"title\":\"3-5 words\",\"tagline\":\"witty one-liner\",\"stops\":[{\"name\":\"Venue\",\"type\":\"food|drinks|activity|movie|liveshow|sports|outdoor|water|picnic|stayin\",\"emoji\":\"emoji\",\"time\":\"7:00 PM\",\"neighborhood\":\"Area\",\"description\":\"1-2 sentences\",\"isLive\":false}]}";
       var data = await callClaude({ model: "claude-sonnet-4-20250514", max_tokens: 600, messages: [{ role: "user", content: prompt }] });
       if (data && data.content) {
         var text = data.content.filter(function(i) { return i.type === "text"; }).map(function(i) { return i.text; }).join("\n");
