@@ -639,9 +639,15 @@ export default function App() {
 
       if (mood === "outdoor") {
         var oPool = DB.outdoor;
-        var spot = pickRandom(oPool, used);
+        // Try cluster filtering first
+        var oFiltered = oPool.filter(function(s) { return isInCluster(s.neighborhood, cluster); });
+        var oPick = oFiltered.length > 0 ? oFiltered : oPool;
+        var spot = pickRandom(oPick, used);
         stops.push({ name: spot.name, type: "outdoor", emoji: "🌲", time: formatTime(Math.round(hr)), neighborhood: spot.neighborhood, description: spot.desc });
         hr += 2;
+        // Re-anchor cluster around the outdoor spot
+        var newCluster = getClusterForNeighborhood(spot.neighborhood);
+        if (newCluster) { cluster = newCluster; applyClustering(); }
       }
 
       if (mood === "water" && DB.water) {
@@ -649,17 +655,30 @@ export default function App() {
           var seasonMatch = !w.season || w.season === "year-round" || season.season === "summer" || season.season === "spring";
           return seasonMatch;
         });
-        if (wPool.length > 0) {
-          var wat = pickRandom(wPool, used);
+        // Try cluster filtering
+        var wFiltered = wPool.filter(function(w) { return isInCluster(w.neighborhood || "Seattle", cluster); });
+        var wPick = wFiltered.length > 0 ? wFiltered : wPool;
+        if (wPick.length > 0) {
+          var wat = pickRandom(wPick, used);
           stops.push({ name: wat.name, type: "water", emoji: "🚣", time: formatTime(Math.round(hr)), neighborhood: wat.neighborhood || "Seattle", description: wat.desc + (wat.cost ? " " + wat.cost : "") });
           hr += 2;
+          var newWCluster = getClusterForNeighborhood(wat.neighborhood || "Seattle");
+          if (newWCluster) { cluster = newWCluster; applyClustering(); }
         }
       }
 
       if (mood === "picnic" && DB.picnicCombos) {
         var pPool = DB.picnicCombos.filter(function(p) { return !isF || p.kidFriendly; });
-        if (pPool.length > 0) {
-          var pic = pickRandom(pPool, used);
+        // Try cluster filtering by park name matching neighborhood
+        var pFiltered = pPool.filter(function(p) {
+          // Check if any outdoor spot with this park name is in the cluster
+          var parkSpot = DB.outdoor.filter(function(o) { return o.name === p.park; });
+          if (parkSpot.length > 0) return isInCluster(parkSpot[0].neighborhood, cluster);
+          return false;
+        });
+        var pPick = pFiltered.length > 0 ? pFiltered : pPool;
+        if (pPick.length > 0) {
+          var pic = pickRandom(pPick, used);
           stops.push({ name: "Picnic: " + pic.park, type: "picnic", emoji: "🧺", time: formatTime(Math.round(hr)), neighborhood: pic.park, description: pic.desc + " Grab: " + pic.takeout });
           hr += 2.5;
         }
@@ -676,7 +695,9 @@ export default function App() {
     // Family mode: sometimes inject a family-specific activity
     if (isF && DB.familyActivities && stops.length < 3 && Math.random() > 0.4) {
       var famPool = DB.familyActivities;
-      var fam = pickRandom(famPool, used);
+      var famFiltered = famPool.filter(function(f) { return isInCluster(f.neighborhood || "Seattle", cluster); });
+      var famPick = famFiltered.length > 0 ? famFiltered : famPool;
+      var fam = pickRandom(famPick, used);
       stops.push({ name: fam.name, type: "activity", emoji: "👨‍👩‍👧‍👦", time: formatTime(Math.round(hr)), neighborhood: fam.neighborhood || "Seattle", description: fam.desc + (fam.cost ? " " + fam.cost : "") });
     }
 
@@ -686,6 +707,9 @@ export default function App() {
       if (hPool.length > 0) {
         var hike = pickRandom(hPool, used);
         stops.push({ name: hike.hike + " + " + hike.brewery, type: "outdoor", emoji: "🥾🍺", time: formatTime(Math.round(baseH)), neighborhood: hike.hike, description: hike.desc });
+        // Re-anchor cluster around the brewery destination for dinner pairing
+        var breweryCluster = getClusterForNeighborhood(hike.brewery);
+        if (breweryCluster) { cluster = breweryCluster; applyClustering(); }
       }
     }
 

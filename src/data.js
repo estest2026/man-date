@@ -13,6 +13,7 @@ export var NEIGHBORHOOD_CLUSTERS = {
   "eastside": ["Bellevue", "Kirkland", "Redmond", "Woodinville", "Issaquah", "Bothell", "Kenmore"],
   "waterfront-magnolia": ["Downtown Waterfront", "Interbay", "Magnolia", "Broadview"],
   "madrona-leschi": ["Madrona", "Leschi", "Eastlake"],
+  "foothills": ["North Bend", "Snoqualmie", "Issaquah", "Snoqualmie Pass", "Fall City"],
 };
 
 export var SEASONAL_CONFIG = {
@@ -60,10 +61,10 @@ export var DB = {
     { name: "Dark Room", neighborhood: "Greenwood", vibe: "craft", desc: "Korean snacks meet booze-forward cocktails. Kimchi pimento cheese.", kidFriendly: false },
     { name: "Triangle Spirits", neighborhood: "Fremont", vibe: "craft", desc: "Late-night cocktails plus some of the best fried chicken in Seattle.", kidFriendly: false },
     { name: "Percy's & Co.", neighborhood: "Ballard", vibe: "craft", desc: "Creative cocktails that make you linger for hours.", kidFriendly: false },
-    { name: "Bar Miriam", neighborhood: "Capitol Hill", vibe: "craft", desc: "Tiny, moody bar with Middle Eastern-inspired cocktails that punch above their weight.", kidFriendly: false },
+    { name: "Bar Miriam", neighborhood: "Queen Anne", vibe: "craft", desc: "Tiny, moody bar with Middle Eastern-inspired cocktails that punch above their weight.", kidFriendly: false },
     { name: "Liberty Bar", neighborhood: "Capitol Hill", vibe: "casual", desc: "Unpretentious Cap Hill standby. Great happy hour and a patio that feels like a secret.", kidFriendly: false },
     { name: "Hazlewood", neighborhood: "Ballard", vibe: "craft", desc: "The bar chefs go to after their shift. Strong drinks, lively vibe, zero pretension.", kidFriendly: false },
-    { name: "Phocific Standard Time", neighborhood: "Capitol Hill", vibe: "craft", desc: "Vietnamese-inspired cocktails above Biang Biang Noodles. Tiny, intimate, exceptional.", kidFriendly: false },
+    { name: "Phocific Standard Time", neighborhood: "Denny Triangle", vibe: "craft", desc: "Vietnamese-inspired cocktails above Pho Bac. Pandan, fish sauce, egg coffee — sounds weird, tastes incredible.", kidFriendly: false },
     { name: "Bar Sabine", neighborhood: "Fremont", vibe: "craft", desc: "Warm neighborhood cocktail bar with a French-Creole soul and killer snacks.", kidFriendly: false },
     { name: "Inside Passage", neighborhood: "Capitol Hill", vibe: "speakeasy", desc: "Shipwreck-themed tiki speakeasy. Two-hour wait but worth it for the octopus ceiling and rum drinks.", kidFriendly: false },
     { name: "Bar Rumba", neighborhood: "Capitol Hill", vibe: "craft", desc: "Rum-focused bar with Latin vibes. Daiquiris done right.", kidFriendly: false },
@@ -76,7 +77,7 @@ export var DB = {
     { name: "Firn", neighborhood: "Downtown", vibe: "upscale", desc: "Rooftop bar that is peak summer date night. Views, vibes, and well-made drinks.", kidFriendly: false },
     { name: "Frolik", neighborhood: "Downtown", vibe: "upscale", desc: "Rooftop lounge with a retractable roof. Summer sunset cocktails are unbeatable.", kidFriendly: false },
     { name: "Stampede Cocktail Club", neighborhood: "Capitol Hill", vibe: "craft", desc: "Western-themed cocktail den. Whiskey-forward menu and honky-tonk charm.", kidFriendly: false },
-    { name: "Founders Club", neighborhood: "Capitol Hill", vibe: "upscale", desc: "Elegant cocktail bar with old-money vibes. Leather, brass, and perfectly stirred drinks.", kidFriendly: false },
+    { name: "Founders Club", neighborhood: "Downtown", vibe: "upscale", desc: "Hidden speakeasy behind a bookshelf in the Fairmont Olympic. Rare spirits, wagyu sliders, pure class.", kidFriendly: false },
     { name: "Radiator Whiskey", neighborhood: "Ballard", vibe: "craft", desc: "Whiskey bar with smoked meat and fun drinks. Also has a Pike Place location.", kidFriendly: false },
     { name: "Four Seasons Goldfinch Tavern Bar", neighborhood: "Downtown", vibe: "upscale", desc: "Hotel bar at the Four Seasons overlooking Elliott Bay. Dress up, sip slow.", kidFriendly: false },
     { name: "Left Bank", neighborhood: "South Park", vibe: "casual", desc: "Best natural wine in Seattle. Bring a burger from Loretta's next door.", kidFriendly: false },
@@ -101,6 +102,9 @@ export var DB = {
     { name: "Pacific Inn Pub", neighborhood: "Fremont", vibe: "casual", desc: "Legendary dive bar with the best fish and chips in Seattle. Cash only. No frills, all flavor.", kidFriendly: false },
     { name: "Madrona Arms", neighborhood: "Madrona", vibe: "casual", desc: "Cozy neighborhood pub in Madrona. Fireplace, good taps, community hang.", kidFriendly: true },
     { name: "Macleod's Scottish Pub", neighborhood: "Ballard", vibe: "casual", desc: "Proper Scottish pub with whisky flights, meat pies, and fish and chips. Cozy and legit.", kidFriendly: true },
+    // === FOOTHILLS BREWERIES ===
+    { name: "Dru Bru + Squatch Box", neighborhood: "Snoqualmie Pass", vibe: "casual", desc: "Alpine brewpub at 3,000 feet with American pub fare inside. Post-hike perfection at the pass.", kidFriendly: true },
+    { name: "Volition Brewing", neighborhood: "North Bend", vibe: "casual", desc: "Small-batch brewery in downtown North Bend. Solid tap list and chill vibes after any I-90 hike.", kidFriendly: true },
   ],
   restaurants: [
     // === FINE DINING & SPECIAL OCCASION ===
@@ -178,6 +182,15 @@ export var DB = {
     { name: "Moto Pizza", neighborhood: "Pioneer Square", vibe: "casual", desc: "Detroit-style pizza with Filipino twists in Smith Tower.", kidFriendly: true, price: "$$", book: "doordash" },
     { name: "A.K. Pizza", neighborhood: "Othello", vibe: "casual", desc: "Best pizza in Seattle per everyone. Preorder slots drop at noon.", kidFriendly: true, price: "$$", book: "walkin" },
     { name: "Rainier Teriyaki", neighborhood: "Rainier Valley", vibe: "casual", desc: "Old-school Seattle teriyaki. Chicken, rice, salad, done. A local institution.", kidFriendly: true, price: "$", book: "walkin" },
+    // === FOOTHILLS (Near trailheads) ===
+    { name: "South Fork", neighborhood: "North Bend", vibe: "casual", desc: "PNW gastropub right off I-90 Exit 32. Huge beer garden, craft cocktails, and a kids play area. Post-hike HQ.", kidFriendly: true, price: "$$", book: "walkin" },
+    { name: "Rent's Due BBQ", neighborhood: "North Bend", vibe: "casual", desc: "Smoked meats in North Bend. Perfect post-hike fuel. Brisket, pulled pork, all the sides.", kidFriendly: true, price: "$", book: "walkin" },
+    { name: "Twede's Cafe", neighborhood: "North Bend", vibe: "casual", desc: "The Twin Peaks diner. Cherry pie and a damn fine cup of coffee. Surreal and fun.", kidFriendly: true, price: "$", book: "walkin" },
+    { name: "Volition Brewing Kitchen", neighborhood: "North Bend", vibe: "casual", desc: "Brewery taproom with solid pub food in downtown North Bend. Post-hike pints and pizza.", kidFriendly: true, price: "$$", book: "walkin" },
+    { name: "Montalcino Ristorante", neighborhood: "Issaquah", vibe: "upscale", desc: "Intimate Italian in Olde Town Issaquah. Handmade pasta, great wine, live Italian singer. Date night after Tiger Mountain.", kidFriendly: false, price: "$$$", book: "opentable", bookUrl: "https://www.opentable.com/montalcino-ristorante-italiano" },
+    { name: "Black Duck Cask & Bottle", neighborhood: "Issaquah", vibe: "casual", desc: "Pub food, 350+ drinks, pool tables. Solid post-hike hangout in Issaquah.", kidFriendly: true, price: "$$", book: "walkin" },
+    { name: "Enzo's Bistro & Bar", neighborhood: "Issaquah", vibe: "upscale casual", desc: "Italian-American in Issaquah. Wood-fired pizza, cocktails, and a great patio. Good for groups.", kidFriendly: true, price: "$$", book: "opentable", bookUrl: "https://www.opentable.com/enzos-bistro-and-bar-issaquah" },
+    { name: "Dru Bru + Squatch Box", neighborhood: "Snoqualmie Pass", vibe: "casual", desc: "Alpine brewpub at 3,000 feet with pub fare. The only post-Franklin Falls option. Worth the stop.", kidFriendly: true, price: "$$", book: "walkin" },
   ],
   activities: [
     { name: "Bad Axe Throwing", neighborhood: "SoDo", desc: "Throw sharp things at wood. Primal, satisfying.", kidFriendly: false, type: "active" },
@@ -264,6 +277,9 @@ export var DB = {
     { hike: "Poo Poo Point", brewery: "Cloudburst (SLU, 30 min)", desc: "Watch paragliders launch off the ridge. 3.7 miles, solid climb. Reward yourself with a Cloudburst IPA.", kidFriendly: true, difficulty: "moderate" },
     { hike: "Ebey's Landing (Whidbey)", brewery: "Penn Cove Brewing", desc: "Coastal bluff trail with wildflowers and Puget Sound views. Ferry + beer + adventure.", kidFriendly: true, difficulty: "moderate" },
     { hike: "Little Si", brewery: "Volition Brewing (North Bend)", desc: "Great intro hike. 2 miles to a viewpoint. Kids handle it. Beer in North Bend after.", kidFriendly: true, difficulty: "easy" },
+    // === CITY WALKS ===
+    { hike: "Volunteer Park to Broadway", brewery: "any Capitol Hill bar", desc: "Stroll through Volunteer Park (conservatory, water tower views), then walk down Broadway for food and drinks. Flat and easy.", kidFriendly: true, difficulty: "easy" },
+    { hike: "Burke-Gilman: Fremont to Gas Works", brewery: "Fremont Brewing", desc: "2-mile waterfront walk along the ship canal past houseboats to Gas Works Park. Best skyline view. Flat, scenic, pairs with Fremont breweries.", kidFriendly: true, difficulty: "easy" },
   ],
   outdoor: [
     { name: "Discovery Park", neighborhood: "Magnolia", desc: "534 acres ending at a lighthouse on the beach.", kidFriendly: true },
