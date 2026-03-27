@@ -314,7 +314,8 @@ export default function App() {
         var isSport = seg === "Sports";
         var isMusic = seg === "Music";
         var isArts = seg === "Arts & Theatre";
-        var isFam = seg === "Family" || isSport;
+        var isFamily = seg === "Family";
+        var isFam = isFamily || isSport || isArts;
         var lt = (e.dates && e.dates.start && e.dates.start.localTime) || "";
         var tm = lt ? new Date("2000-01-01T" + lt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : "";
         var pr = (e.priceRanges && e.priceRanges[0]) ? e.priceRanges[0].min : null;
@@ -527,6 +528,20 @@ export default function App() {
         if (cActs.length > 0) {
           var act = pickRandom(cActs, used);
           stops.push({ name: act.name, type: act.type === "show" ? "liveshow" : "activity", emoji: act.type === "show" ? "🎶" : "🎯", time: formatTime(Math.round(hr)), neighborhood: act.neighborhood || "Seattle", description: act.desc });
+          hr += 2;
+        }
+      }
+
+      if (mood === "liveshow") {
+        // Fallback when Ticketmaster didn't have events — pick from database show venues
+        var showPool = (DB.activities || []).filter(function(a) {
+          if (a.type !== "show") return false;
+          if (isF && a.kidFriendly === false) return false;
+          return true;
+        });
+        if (showPool.length > 0) {
+          var showPick = pickRandom(showPool, used);
+          stops.push({ name: showPick.name, type: "liveshow", emoji: "🎶", time: formatTime(Math.round(hr)), neighborhood: showPick.neighborhood || "Seattle", description: showPick.desc + (showPick.cost ? " " + showPick.cost : "") });
           hr += 2;
         }
       }
