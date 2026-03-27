@@ -114,7 +114,6 @@ export var DB = {
     { name: "Westward", neighborhood: "South Lake Union", vibe: "upscale casual", desc: "Waterfront seafood with fire pits on the patio. The sunset date spot.", kidFriendly: false, price: "$$$", book: "resy", bookUrl: "https://resy.com/cities/sea/westward" },
     { name: "Jeffry's", neighborhood: "Capitol Hill", vibe: "upscale casual", desc: "Bateau reborn. Dry-aged steaks with a Humble Cuts program.", kidFriendly: false, price: "$$$", book: "resy", bookUrl: "https://resy.com/cities/sea/jeffrys" },
     { name: "Communion", neighborhood: "Central District", vibe: "upscale casual", desc: "Southern-meets-PNW comfort food. Mac and cheese is mandatory.", kidFriendly: true, price: "$$$", book: "resy", bookUrl: "https://resy.com/cities/sea/communion" },
-    { name: "Sawyer", neighborhood: "Ballard", vibe: "upscale casual", desc: "Seasonal PNW cooking. The Ballard date night spot.", kidFriendly: false, price: "$$$", book: "resy", bookUrl: "https://resy.com/cities/sea/sawyer" },
     { name: "Homer", neighborhood: "Beacon Hill", vibe: "upscale casual", desc: "Mediterranean flavors, wood-fired pitas, lamb ribs. Reopened strong after a fire.", kidFriendly: true, price: "$$$", book: "resy", bookUrl: "https://resy.com/cities/sea/homer" },
     { name: "Meesha", neighborhood: "Capitol Hill", vibe: "upscale", desc: "Creative Indian fine dining. Mutton kheema pao.", kidFriendly: false, price: "$$$", book: "resy", bookUrl: "https://resy.com/cities/sea/meesha" },
     { name: "Blue Willow", neighborhood: "Capitol Hill", vibe: "trendy", desc: "Sichuan ribs, honey walnut prawn buns, lanterns. Date night.", kidFriendly: false, price: "$$", book: "resy", bookUrl: "https://resy.com/cities/sea/blue-willow" },
@@ -299,15 +298,15 @@ export var DB = {
 // Approved venue whitelist for Ticketmaster filtering
 export var VENUE_WHITELIST = {
   sports: [
-    "T-Mobile Park",
-    "Lumen Field",
-    "Climate Pledge Arena",
-    "Husky Stadium",
-    "Alaska Airlines Arena",
-    "Hec Edmundson Pavilion",
-    "Husky Ballpark",
-    "Husky Softball Stadium",
-    "Interbay Stadium",
+    { name: "T-Mobile Park", neighborhood: "SoDo" },
+    { name: "Lumen Field", neighborhood: "SoDo" },
+    { name: "Climate Pledge Arena", neighborhood: "Queen Anne" },
+    { name: "Husky Stadium", neighborhood: "University District" },
+    { name: "Alaska Airlines Arena", neighborhood: "University District" },
+    { name: "Hec Edmundson Pavilion", neighborhood: "University District" },
+    { name: "Husky Ballpark", neighborhood: "University District" },
+    { name: "Husky Softball Stadium", neighborhood: "University District" },
+    { name: "Interbay Stadium", neighborhood: "Interbay" },
   ],
   shows: [
     "The Showbox",

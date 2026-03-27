@@ -436,17 +436,17 @@ export default function App() {
     var cActs = clusterFilter(filteredActs);
 
     // Determine active moods
-    var moodOrder = ["outdoor", "water", "picnic", "drinks", "food", "activity", "liveshow", "sports", "stayin"];
+    var moodOrder = ["outdoor", "water", "picnic", "drinks", "food", "activity", "movie", "liveshow", "sports", "stayin"];
     var active;
 
     if (theMoods.includes("dealers")) {
       var options;
       if (isF) {
-        options = isLN ? ["food", "stayin"] : isAft ? ["food", "activity", "outdoor", "picnic"] : ["food", "activity", "stayin", "liveshow"];
+        options = isLN ? ["food", "stayin"] : isAft ? ["food", "activity", "outdoor", "picnic", "movie"] : ["food", "activity", "stayin", "liveshow", "movie"];
       } else if (isP) {
-        options = isLN ? ["drinks", "food", "liveshow"] : isAft ? ["drinks", "food", "picnic", "water"] : ["drinks", "food", "activity", "liveshow"];
+        options = isLN ? ["drinks", "food", "liveshow", "movie"] : isAft ? ["drinks", "food", "picnic", "water"] : ["drinks", "food", "activity", "liveshow", "movie"];
       } else {
-        options = isLN ? ["drinks", "food", "activity", "liveshow"] : isAft ? ["drinks", "food", "activity", "outdoor", "water"] : ["drinks", "food", "activity", "liveshow", "sports"];
+        options = isLN ? ["drinks", "food", "activity", "liveshow", "movie"] : isAft ? ["drinks", "food", "activity", "outdoor", "water"] : ["drinks", "food", "activity", "liveshow", "sports", "movie"];
       }
       // Seasonal boost: add boosted categories
       var boosts = season.boost || [];
@@ -524,23 +524,26 @@ export default function App() {
       }
 
       if (mood === "activity") {
-        // Sometimes inject a movie instead of a regular activity
+        if (cActs.length > 0) {
+          var act = pickRandom(cActs, used);
+          stops.push({ name: act.name, type: act.type === "show" ? "liveshow" : "activity", emoji: act.type === "show" ? "🎶" : "🎯", time: formatTime(Math.round(hr)), neighborhood: act.neighborhood || "Seattle", description: act.desc });
+          hr += 2;
+        }
+      }
+
+      if (mood === "movie") {
         var availableMovies = (movies || []).filter(function(m) {
           if (!m.certification) return true;
           if (isF) return m.certification === "G" || m.certification === "PG";
           return m.certification === "PG-13" || m.certification === "R" || m.certification === "PG";
         });
-        var useMovie = availableMovies.length > 0 && Math.random() > 0.5;
-
-        if (useMovie) {
+        if (availableMovies.length > 0) {
           var moviePick = availableMovies[Math.floor(Math.random() * availableMovies.length)];
-          // Pick an appropriate theater
           var theaterPool = THEATERS.filter(function(t) {
             if (isF && !t.kidFriendly) return false;
             if (isP && t.vibe === "date") return true;
             return true;
           });
-          // Prefer date-vibe theaters for partner mode
           if (isP) {
             var dateTheaters = theaterPool.filter(function(t) { return t.vibe === "date"; });
             if (dateTheaters.length > 0) theaterPool = dateTheaters;
@@ -557,10 +560,6 @@ export default function App() {
             fandangoUrl: fandangoUrl(moviePick.title, theater.name),
           });
           hr += 2.5;
-        } else if (cActs.length > 0) {
-          var act = pickRandom(cActs, used);
-          stops.push({ name: act.name, type: act.type === "show" ? "liveshow" : "activity", emoji: act.type === "show" ? "🎶" : "🎯", time: formatTime(Math.round(hr)), neighborhood: act.neighborhood || "Seattle", description: act.desc });
-          hr += 2;
         }
       }
 
@@ -683,7 +682,7 @@ export default function App() {
       var aud = who === "partner" ? "date night with wife" : who === "friends" ? "guys night with buddies" : "family night with kids";
       var evStr = events.length > 0 ? "\nLIVE EVENTS: " + JSON.stringify(events.slice(0, 5).map(function(e) { return { name: e.name, venue: e.neighborhood, time: e.time }; })) : "";
       var wxStr = wx ? "\nWEATHER: " + wx.label + ", " + wx.hi + "F" + (wx.isRainy ? " RAINY" : "") : "";
-      var prompt = "You are Man-Date for Seattle dads. Build a " + moods.join("+") + " plan for " + aud + ". Time: " + (timeOfDay || "evening") + "." + wxStr + evStr + "\nPick 2-4 stops. Fun descriptions. ONLY JSON:\n{\"title\":\"3-5 words\",\"tagline\":\"witty one-liner\",\"stops\":[{\"name\":\"Venue\",\"type\":\"food|drinks|activity|liveshow|sports|outdoor|water|picnic|stayin\",\"emoji\":\"emoji\",\"time\":\"7:00 PM\",\"neighborhood\":\"Area\",\"description\":\"1-2 sentences\",\"isLive\":false}]}";
+      var prompt = "You are Man-Date for Seattle dads. Build a " + moods.join("+") + " plan for " + aud + ". Time: " + (timeOfDay || "evening") + "." + wxStr + evStr + "\nPick 2-4 stops. Fun descriptions. ONLY JSON:\n{\"title\":\"3-5 words\",\"tagline\":\"witty one-liner\",\"stops\":[{\"name\":\"Venue\",\"type\":\"food|drinks|activity|movie|liveshow|sports|outdoor|water|picnic|stayin\",\"emoji\":\"emoji\",\"time\":\"7:00 PM\",\"neighborhood\":\"Area\",\"description\":\"1-2 sentences\",\"isLive\":false}]}";
       var data = await callClaude({ model: "claude-sonnet-4-20250514", max_tokens: 600, messages: [{ role: "user", content: prompt }] });
       if (data && data.content) {
         var text = data.content.filter(function(i) { return i.type === "text"; }).map(function(i) { return i.text; }).join("\n");
@@ -761,7 +760,7 @@ export default function App() {
 
   var whoLabel = who === "partner" ? "💑 Date Night" : who === "friends" ? "🍻 The Boys" : "👨‍👩‍👧‍👦 Family";
   var todLabel = timeOfDay === "afternoon" ? "☀️ Afternoon" : timeOfDay === "latenight" ? "🌙 Late Night" : "🌆 Evening";
-  var moodLabels = { food: "🍽️ Food", drinks: "🍺 Drinks", activity: "🎯 Activity", liveshow: "🎶 Live Show", sports: "🏟️ Live Sports", stayin: "🏡 Stay In", outdoor: "🌲 Outdoor", water: "🚣 Water", picnic: "🧺 Picnic", dealers: "🎲 Dealer's Choice" };
+  var moodLabels = { food: "🍽️ Food", drinks: "🍺 Drinks", activity: "🎯 Activity", movie: "🎬 Movie", liveshow: "🎶 Live Show", sports: "🏟️ Live Sports", stayin: "🏡 Stay In", outdoor: "🌲 Outdoor", water: "🚣 Water", picnic: "🧺 Picnic", dealers: "🎲 Dealer's Choice" };
 
   // ─── RENDER ─────────────────────────────────────────────────────────────────
   return (
@@ -883,10 +882,10 @@ export default function App() {
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "10px" }}>
               {[
                 { k: "food", e: "🍽️", l: "Food" }, { k: "drinks", e: "🍺", l: "Drinks" },
-                { k: "activity", e: "🎯", l: "Activity" }, { k: "liveshow", e: "🎶", l: "Live Show" },
-                { k: "sports", e: "🏟️", l: "Live Sports" }, { k: "stayin", e: "🏡", l: "Stay In" },
+                { k: "activity", e: "🎯", l: "Activity" }, { k: "movie", e: "🎬", l: "Movie" },
+                { k: "liveshow", e: "🎶", l: "Live Show" }, { k: "sports", e: "🏟️", l: "Live Sports" },
                 { k: "outdoor", e: "🌲", l: "Outdoor" }, { k: "water", e: "🚣", l: "On the Water" },
-                { k: "picnic", e: "🧺", l: "Picnic" },
+                { k: "picnic", e: "🧺", l: "Picnic" }, { k: "stayin", e: "🏡", l: "Stay In" },
               ].map(function(m, i) {
                 return (
                   <div key={m.k} className={"su d" + Math.min(i + 3, 7)} style={Object.assign({}, moods.includes(m.k) ? crdSel : crd, { textAlign: "center", padding: "14px 8px" })} onClick={function() { toggleMood(m.k); }}>
