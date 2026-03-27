@@ -47,6 +47,18 @@ function formatTime(h) {
   return display + ":" + min + " " + ampm;
 }
 
+function parseTimeToHours(timeStr) {
+  if (!timeStr) return 19;
+  var match = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
+  if (!match) return 19;
+  var h = parseInt(match[1]);
+  var m = parseInt(match[2]);
+  var ampm = match[3].toUpperCase();
+  if (ampm === "PM" && h !== 12) h += 12;
+  if (ampm === "AM" && h === 12) h = 0;
+  return h + m / 60;
+}
+
 function getCurrentSeason() {
   var month = new Date().getMonth() + 1;
   return SEASONAL_CONFIG[month] || SEASONAL_CONFIG[6];
@@ -557,9 +569,18 @@ export default function App() {
       }
 
       if (mood === "food") {
-        var resto = pickRandom(cRestos, used);
-        stops.push({ name: resto.name, type: "food", emoji: "🍽️", time: formatTime(Math.round(hr)), neighborhood: resto.neighborhood, description: resto.desc, book: resto.book || null, bookUrl: resto.bookUrl || null });
-        hr += 1.5;
+        var foodPool = cRestos;
+        // When Stay In is in the plan, only suggest takeout-friendly spots
+        if (theMoods.includes("stayin") || active.indexOf("stayin") !== -1) {
+          var takeoutPool = foodPool.filter(function(r) { return r.book === "walkin" || r.book === "doordash"; });
+          if (takeoutPool.length > 0) foodPool = takeoutPool;
+        }
+        var resto = pickRandom(foodPool, used);
+        var isTakeout = theMoods.includes("stayin") || active.indexOf("stayin") !== -1;
+        var foodEmoji = isTakeout ? "🥡" : "🍽️";
+        var foodDesc = isTakeout ? "Grab takeout from " + resto.name + ". " + resto.desc : resto.desc;
+        stops.push({ name: resto.name, type: "food", emoji: foodEmoji, time: formatTime(Math.round(hr)), neighborhood: resto.neighborhood, description: foodDesc, book: resto.book || null, bookUrl: resto.bookUrl || null, isTakeout: isTakeout });
+        hr += isTakeout ? 0.5 : 1.5;
       }
 
       if (mood === "activity") {
@@ -700,6 +721,131 @@ export default function App() {
     var titles = titlesMap[ctx] || titlesMap["friends-evening"];
     var tags = tagsMap[theWho] || tagsMap.friends;
 
+    // ─── SMART SCHEDULING: reorder and retime stops ──────────────────────────
+    if (stops.length > 1) {
+      // Categorize all stops
+      var outdoorStops = stops.filter(function(s) { return s.type === "outdoor" || s.type === "water"; });
+      var picnicStops = stops.filter(function(s) { return s.type === "picnic"; });
+      var dinnerStops = stops.filter(function(s) { return s.type === "food"; });
+      var drinkStops = stops.filter(function(s) { return s.type === "drinks"; });
+      var fixedStops = stops.filter(function(s) { return s.isLive || s.type === "movie" || s.type === "liveshow" || s.type === "sports"; });
+      var activityStops = stops.filter(function(s) { return s.type === "activity"; });
+      var stayInStops = stops.filter(function(s) { return s.type === "stayin"; });
+      var hikeStops = stops.filter(function(s) { return (s.emoji || "").indexOf("🥾") !== -1; });
+
+      // Find the fixed-time event
+      var fixedEvent = fixedStops.length > 0 ? fixedStops[0] : null;
+      var fixedTime = fixedEvent ? parseTimeToHours(fixedEvent.time) : null;
+
+      var reordered = [];
+      var hasOutdoor = outdoorStops.length > 0 || picnicStops.length > 0 || hikeStops.length > 0;
+      var hasStayIn = stayInStops.length > 0;
+
+      if (isAft) {
+        // ── AFTERNOON: flexible, no strict rules ──
+        // Outdoor/water first, then everything else in natural order
+        var aftTime = 14;
+        outdoorStops.forEach(function(s) { s.time = formatTime(aftTime); reordered.push(s); aftTime += 2; });
+        picnicStops.forEach(function(s) { s.time = formatTime(aftTime); reordered.push(s); aftTime += 2; });
+        drinkStops.forEach(function(s) { s.time = formatTime(aftTime); reordered.push(s); aftTime += 1; });
+        dinnerStops.forEach(function(s) { s.time = formatTime(aftTime); reordered.push(s); aftTime += 1.5; });
+        activityStops.forEach(function(s) { s.time = formatTime(Math.round(aftTime)); reordered.push(s); aftTime += 2; });
+        fixedStops.forEach(function(s) { reordered.push(s); });
+        stayInStops.forEach(function(s) { s.time = formatTime(Math.round(aftTime)); reordered.push(s); });
+
+      } else if (isLN) {
+        // ── LATE NIGHT: flexible order, dinner before 8 PM if possible ──
+        var lnTime = 18;
+        // Dinner first to keep it before 8 PM
+        dinnerStops.forEach(function(s) { s.time = formatTime(lnTime); reordered.push(s); lnTime += 1.5; });
+        drinkStops.forEach(function(s) { s.time = formatTime(lnTime); reordered.push(s); lnTime += 1; });
+        outdoorStops.forEach(function(s) { s.time = formatTime(Math.round(lnTime)); reordered.push(s); lnTime += 2; });
+        fixedStops.forEach(function(s) { reordered.push(s); lnTime = (fixedTime || lnTime) + 2.5; });
+        activityStops.forEach(function(s) { s.time = formatTime(Math.round(lnTime)); reordered.push(s); lnTime += 2; });
+        stayInStops.forEach(function(s) { s.time = formatTime(Math.round(lnTime)); reordered.push(s); });
+
+      } else {
+        // ── EVENING: smart scheduling ──
+
+        if (hasOutdoor && !fixedEvent) {
+          // Outdoor/water/picnic/hike goes FIRST, then dinner/drinks after
+          var outTime = 16;
+          outdoorStops.forEach(function(s) { s.time = formatTime(outTime); reordered.push(s); outTime += 2; });
+          picnicStops.forEach(function(s) { s.time = formatTime(outTime); reordered.push(s); outTime += 2; });
+          hikeStops.forEach(function(s) { if (reordered.indexOf(s) === -1) { s.time = formatTime(outTime); reordered.push(s); outTime += 2; } });
+          var postOutTime = Math.max(outTime, 18);
+          // After outdoor: dinner then drinks (or just whichever is present)
+          dinnerStops.forEach(function(s) { s.time = formatTime(postOutTime); reordered.push(s); postOutTime += 1.5; });
+          drinkStops.forEach(function(s) { s.time = formatTime(postOutTime); reordered.push(s); postOutTime += 1; });
+          activityStops.forEach(function(s) { s.time = formatTime(Math.round(postOutTime)); reordered.push(s); postOutTime += 2; });
+          stayInStops.forEach(function(s) { s.time = formatTime(Math.round(postOutTime)); reordered.push(s); });
+
+        } else if (fixedEvent && fixedTime) {
+          // ── Has a fixed-time event: work backwards ──
+
+          if (fixedEvent.type === "sports") {
+            // Dinner → Game → Drinks after
+            if (hasOutdoor) {
+              // Outdoor first, then dinner, then game, then drinks
+              outdoorStops.forEach(function(s) { s.time = formatTime(Math.max(fixedTime - 4, 14)); reordered.push(s); });
+              picnicStops.forEach(function(s) { s.time = formatTime(Math.max(fixedTime - 3.5, 14.5)); reordered.push(s); });
+            }
+            var sportsDinnerTime = Math.max(fixedTime - 1.5, 17.5);
+            dinnerStops.forEach(function(s) { s.time = formatTime(sportsDinnerTime); reordered.push(s); });
+            fixedStops.forEach(function(s) { reordered.push(s); });
+            var postGameTime = fixedTime + 3;
+            drinkStops.forEach(function(s) { s.time = formatTime(postGameTime); reordered.push(s); });
+            activityStops.forEach(function(s) { s.time = formatTime(postGameTime + 1); reordered.push(s); });
+
+          } else if (fixedEvent.type === "liveshow") {
+            // Dinner → Pre-show drinks → Show
+            if (hasOutdoor) {
+              outdoorStops.forEach(function(s) { s.time = formatTime(Math.max(fixedTime - 4, 14)); reordered.push(s); });
+              picnicStops.forEach(function(s) { s.time = formatTime(Math.max(fixedTime - 3.5, 14.5)); reordered.push(s); });
+            }
+            var showDinnerTime = Math.max(fixedTime - 2, 17.5);
+            dinnerStops.forEach(function(s) { s.time = formatTime(showDinnerTime); reordered.push(s); });
+            var preShowDrinks = fixedTime - 0.5;
+            drinkStops.forEach(function(s) { s.time = formatTime(preShowDrinks); reordered.push(s); });
+            fixedStops.forEach(function(s) { reordered.push(s); });
+            activityStops.forEach(function(s) { s.time = formatTime(fixedTime + 2.5); reordered.push(s); });
+
+          } else if (fixedEvent.type === "movie") {
+            // Drinks → Dinner → Movie
+            if (hasOutdoor) {
+              outdoorStops.forEach(function(s) { s.time = formatTime(Math.max(fixedTime - 5, 14)); reordered.push(s); });
+              picnicStops.forEach(function(s) { s.time = formatTime(Math.max(fixedTime - 4.5, 14.5)); reordered.push(s); });
+            }
+            var movieDrinksTime = Math.max(fixedTime - 2.5, 16.5);
+            drinkStops.forEach(function(s) { s.time = formatTime(movieDrinksTime); reordered.push(s); });
+            var movieDinnerTime = Math.max(fixedTime - 1.5, 17.5);
+            dinnerStops.forEach(function(s) { s.time = formatTime(movieDinnerTime); reordered.push(s); });
+            fixedStops.forEach(function(s) { reordered.push(s); });
+            activityStops.forEach(function(s) { s.time = formatTime(fixedTime + 2.5); reordered.push(s); });
+          }
+          stayInStops.forEach(function(s) { s.time = "After"; reordered.push(s); });
+
+        } else if (hasStayIn) {
+          // ── Stay In: drinks out, grab takeout, head home ──
+          var stayTime = 17;
+          drinkStops.forEach(function(s) { s.time = formatTime(stayTime); reordered.push(s); stayTime += 1; });
+          dinnerStops.forEach(function(s) { s.time = formatTime(stayTime); reordered.push(s); stayTime += 0.5; });
+          stayInStops.forEach(function(s) { s.time = formatTime(Math.round(stayTime)); reordered.push(s); });
+
+        } else {
+          // ── No fixed event, no outdoor, no stay in: Drinks → Dinner → Activity ──
+          var evTime = 17;
+          drinkStops.forEach(function(s) { s.time = formatTime(evTime); reordered.push(s); evTime += 1; });
+          dinnerStops.forEach(function(s) { s.time = formatTime(evTime); reordered.push(s); evTime += 1.5; });
+          activityStops.forEach(function(s) { s.time = formatTime(Math.round(evTime)); reordered.push(s); evTime += 2; });
+          fixedStops.forEach(function(s) { reordered.push(s); });
+          stayInStops.forEach(function(s) { s.time = formatTime(Math.round(evTime)); reordered.push(s); });
+        }
+      }
+
+      if (reordered.length > 0) stops = reordered;
+    }
+
     var finalStops = stops.slice(0, 4);
     var budget = estimateBudget(finalStops);
 
@@ -731,31 +877,20 @@ export default function App() {
     var localPlan = buildLocalPlan(wx, events, null, null, null, movies);
     var finalPlan = localPlan;
 
-    // Try Claude API upgrade
+    // Try Claude API for better title and tagline (keep local plan's stops — they're already scheduled)
     try {
       var aud = who === "partner" ? "date night with wife" : who === "friends" ? "guys night with buddies" : "family night with kids";
-      var evStr = events.length > 0 ? "\nLIVE EVENTS: " + JSON.stringify(events.slice(0, 5).map(function(e) { return { name: e.name, venue: e.neighborhood, time: e.time }; })) : "";
-      var wxStr = wx ? "\nWEATHER: " + wx.label + ", " + wx.hi + "F" + (wx.isRainy ? " RAINY" : "") : "";
-      var clusterHoods = localPlan.cluster ? getClusterNeighborhoods(localPlan.cluster).join(", ") : "any Seattle neighborhood";
-      var prompt = "You are Man-Date for Seattle dads. Build a " + moods.join("+") + " plan for " + aud + ". Time: " + (timeOfDay || "evening") + "." + wxStr + evStr + "\nIMPORTANT: All stops MUST be in these neighborhoods: " + clusterHoods + ". Do NOT mix neighborhoods from different parts of the city.\nPick 2-4 stops. Fun descriptions. ONLY JSON:\n{\"title\":\"3-5 words\",\"tagline\":\"witty one-liner\",\"stops\":[{\"name\":\"Venue\",\"type\":\"food|drinks|activity|movie|liveshow|sports|outdoor|water|picnic|stayin\",\"emoji\":\"emoji\",\"time\":\"7:00 PM\",\"neighborhood\":\"Area\",\"description\":\"1-2 sentences\",\"isLive\":false}]}";
-      var data = await callClaude({ model: "claude-sonnet-4-20250514", max_tokens: 600, messages: [{ role: "user", content: prompt }] });
+      var stopsDesc = localPlan.stops.map(function(s) { return s.emoji + " " + s.name + " (" + s.type + ")"; }).join(", ");
+      var prompt = "You are Man-Date, a fun Seattle dad planning app. Generate ONLY a witty title and tagline for this plan: " + moods.join("+") + " " + aud + " with stops: " + stopsDesc + ". Respond ONLY JSON: {\"title\":\"3-5 words\",\"tagline\":\"witty one-liner under 10 words\"}";
+      var data = await callClaude({ model: "claude-sonnet-4-20250514", max_tokens: 150, messages: [{ role: "user", content: prompt }] });
       if (data && data.content) {
         var text = data.content.filter(function(i) { return i.type === "text"; }).map(function(i) { return i.text; }).join("\n");
         if (text) {
           var jsonMatch = text.match(/\{[\s\S]*\}/);
           if (jsonMatch) {
             var parsed = JSON.parse(jsonMatch[0]);
-            if (parsed.stops && parsed.stops.length > 0) {
-              // Preserve live events and movie stops from local plan — Claude doesn't have this data
-              var liveStops = localPlan.stops.filter(function(s) { return s.isLive || s.type === "movie"; });
-              var claudeStops = parsed.stops.filter(function(s) { return !s.isLive && s.type !== "movie"; });
-              // Merge: live/movie stops first, then Claude's picks, cap at 4
-              var mergedStops = liveStops.concat(claudeStops).slice(0, 4);
-              parsed.stops = mergedStops;
-              parsed.budget = estimateBudget(parsed.stops);
-              parsed.season = getCurrentSeason();
-              finalPlan = parsed;
-            }
+            if (parsed.title) finalPlan.title = parsed.title;
+            if (parsed.tagline) finalPlan.tagline = parsed.tagline;
           }
         }
       }

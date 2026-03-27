@@ -286,12 +286,10 @@ export var DB = {
   stayIn: [
     { name: "Board Game Night", items: ["Ticket to Ride", "Raccoon Tycoon", "Dragomino", "Codenames", "Catan", "Azul", "Wingspan", "Sushi Go"], desc: "Pull out the good games. No screens allowed." },
     { name: "Puzzle Night", items: ["1000-piece landscape", "3D puzzle", "Mystery jigsaw"], desc: "Playlist on, drinks poured, 1000 pieces of zen." },
-    { name: "Movie Marathon", items: ["80s action classics", "Studio Ghibli night", "Marvel chronological", "Dads pick finally"], desc: "Projector or blanket fort. Your call." },
+    { name: "Movie Night", items: ["80s action classics", "Studio Ghibli night", "Marvel chronological", "Dads pick finally"], desc: "Projector or blanket fort. Your call." },
     { name: "Pizza Cook-Off", items: ["Homemade pizza night", "Taco bar", "Sushi rolling", "Breakfast for dinner"], desc: "Everyone gets a station. Chaos is the ingredient." },
-    { name: "Science Experiments", items: ["Mentos and Coke", "Baking soda volcano", "Slime lab", "Crystal growing"], desc: "Be the cool parent. Secretly educational." },
     { name: "Video Game Tournament", items: ["Mario Kart bracket", "Smash Bros tournament", "Minecraft build battle"], desc: "Set up the bracket. Loser does dishes." },
     { name: "Backyard Campout", items: ["Tent setup", "S'mores station", "Ghost stories", "Stargazing app"], desc: "All the camping vibes, zero drive time." },
-    { name: "Craft Night", items: ["Tie-dye shirts", "Model kits", "Paint night", "Lego challenge"], desc: "Get messy. Make something. Hang it on the fridge." },
   ],
 };
 
