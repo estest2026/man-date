@@ -43,6 +43,7 @@ export var BUDGET_GUIDE = {
   stayin: { low: 0, mid: 15, high: 40 },
   water: { low: 20, mid: 40, high: 85 },
   picnic: { low: 10, mid: 25, high: 45 },
+  movie: { low: 12, mid: 18, high: 35 },
 };
 
 export var DB = {
@@ -334,3 +335,30 @@ export var VENUE_WHITELIST = {
     "Tractor Tavern",
   ],
 };
+
+// Movie theaters for the movie feature
+export var THEATERS = [
+  // Seattle — Character spots (prioritize for recommendations)
+  { name: "Central Cinema", neighborhood: "Central District", vibe: "date", desc: "Eat and drink during the movie. Themed screenings. Peak date night.", kidFriendly: false, fandango: "central-cinema-seattle" },
+  { name: "Majestic Bay", neighborhood: "Ballard", desc: "Classic Ballard single-screen. Great neighborhood theater.", kidFriendly: true, fandango: "majestic-bay-theatres-seattle" },
+  { name: "SIFF Cinema Egyptian", neighborhood: "Capitol Hill", vibe: "date", desc: "Gorgeous 1915 art deco theater. Indie and festival films.", kidFriendly: true, fandango: "siff-cinema-egyptian-seattle" },
+  { name: "SIFF Cinema Uptown", neighborhood: "Queen Anne", desc: "Independent and foreign films near Seattle Center.", kidFriendly: true, fandango: "siff-cinema-uptown-seattle" },
+  { name: "Northwest Film Forum", neighborhood: "Capitol Hill", vibe: "date", desc: "Indie essential. Arthouse, rare films, filmmaker Q&As.", kidFriendly: false, fandango: "northwest-film-forum-seattle" },
+  { name: "The Beacon", neighborhood: "Columbia City", desc: "Repertory cinema in a neighborhood gem. Classics and cult films.", kidFriendly: true, fandango: "the-beacon-seattle" },
+  { name: "Historic Admiral Theater", neighborhood: "West Seattle", desc: "Classic single-screen with neighborhood charm.", kidFriendly: true, fandango: "admiral-theater-seattle" },
+  { name: "Ark Lodge Cinemas", neighborhood: "Columbia City", desc: "Neighborhood indie theater. Cozy and unpretentious.", kidFriendly: true, fandango: "ark-lodge-cinemas-seattle" },
+  // Seattle — Chains
+  { name: "AMC Pacific Place", neighborhood: "Downtown", desc: "Downtown multiplex. All the blockbusters.", kidFriendly: true, fandango: "amc-pacific-place-11-seattle" },
+  { name: "Regal Meridian", neighborhood: "Downtown", desc: "Big chain downtown. Recliners.", kidFriendly: true, fandango: "regal-meridian-seattle" },
+  { name: "Regal Thornton Place", neighborhood: "Northgate", desc: "North Seattle chain option.", kidFriendly: true, fandango: "regal-thornton-place-seattle" },
+  // Seattle — IMAX
+  { name: "Boeing IMAX Theater", neighborhood: "Seattle Center", desc: "Six-story IMAX screen at Pacific Science Center.", kidFriendly: true, fandango: "boeing-imax-theater-seattle" },
+  { name: "PACCAR IMAX Theater", neighborhood: "Seattle Center", desc: "35-foot IMAX at Pacific Science Center.", kidFriendly: true, fandango: "paccar-imax-theater-seattle" },
+  // Bellevue / Eastside — Upscale date night
+  { name: "IPIC Redmond", neighborhood: "Redmond", vibe: "date", desc: "21+. Luxury recliners, cocktails and food served during the movie. Elite date night.", kidFriendly: false, fandango: "ipic-theaters-redmond" },
+  { name: "Cinemark Reserve Lincoln Square", neighborhood: "Bellevue", vibe: "date", desc: "21+. Leather recliners, bar, upscale Bellevue cinema.", kidFriendly: false, fandango: "cinemark-reserve-bellevue" },
+  // Bellevue / Eastside — Standard
+  { name: "Cinemark Lincoln Square", neighborhood: "Bellevue", desc: "Big screens, IMAX, free parking at Bellevue Square.", kidFriendly: true, fandango: "cinemark-lincoln-square-cinemas-bellevue" },
+  { name: "Regal Crossroads Bellevue", neighborhood: "Bellevue", desc: "Eastside chain option.", kidFriendly: true, fandango: "regal-crossroads-bellevue" },
+  { name: "AMC Factoria 8", neighborhood: "Bellevue", desc: "Bellevue recliners, self-serve butter.", kidFriendly: true, fandango: "amc-factoria-8-bellevue" },
+];

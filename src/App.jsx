@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { DB, TEAMS, NEIGHBORHOOD_CLUSTERS, SEASONAL_CONFIG, BUDGET_GUIDE } from "./data";
+import { DB, TEAMS, NEIGHBORHOOD_CLUSTERS, SEASONAL_CONFIG, BUDGET_GUIDE, VENUE_WHITELIST, THEATERS } from "./data";
 
 // ─── CONFIG ────────────────────────────────────────────────────────────────────
 var TM_KEY = "zQK7Dpvk0bMN04vArfdEZnIxma0gBBJ6";
@@ -114,10 +114,16 @@ export default function App() {
   var [sugDone, setSugDone] = useState(false);
   var [planSaved, setPlanSaved] = useState(false);
   var [showShareCard, setShowShareCard] = useState(false);
+  var [nowPlaying, setNowPlaying] = useState([]);
 
   // Build Google Maps URL for a venue
   function mapsUrl(name, hood) {
     return "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(name + " Seattle " + (hood || ""));
+  }
+
+  // Build Fandango URL for a movie at a theater
+  function fandangoUrl(movieTitle, theaterName) {
+    return "https://www.fandango.com/search?q=" + encodeURIComponent(movieTitle + " " + theaterName);
   }
 
   // Build Resy search URL
@@ -301,8 +307,10 @@ export default function App() {
       if (!data._embedded || !data._embedded.events) return [];
       return data._embedded.events.map(function(e) {
         var v = (e._embedded && e._embedded.venues && e._embedded.venues[0]) || {};
+        var venueName = v.name || "";
         var cl = (e.classifications && e.classifications[0]) || {};
         var seg = (cl.segment && cl.segment.name) || "";
+        var genre = (cl.genre && cl.genre.name) || "";
         var isSport = seg === "Sports";
         var isMusic = seg === "Music";
         var isArts = seg === "Arts & Theatre";
@@ -311,14 +319,24 @@ export default function App() {
         var tm = lt ? new Date("2000-01-01T" + lt).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : "";
         var pr = (e.priceRanges && e.priceRanges[0]) ? e.priceRanges[0].min : null;
         var isTeam = TEAMS.some(function(t) { return (e.name || "").toLowerCase().includes(t.toLowerCase()); });
+
+        // Filter by venue whitelist
+        var inSportsVenue = VENUE_WHITELIST.sports.some(function(wv) { return venueName.toLowerCase().includes(wv.toLowerCase()) || wv.toLowerCase().includes(venueName.toLowerCase()); });
+        var inShowVenue = VENUE_WHITELIST.shows.some(function(wv) { return venueName.toLowerCase().includes(wv.toLowerCase()) || wv.toLowerCase().includes(venueName.toLowerCase()); });
+        var isApproved = inSportsVenue || inShowVenue;
+        if (!isApproved) return null;
+
+        // Categorize as sports or liveshow
+        var category = (isSport || inSportsVenue) ? "sports" : "liveshow";
+
         return {
-          name: e.name, neighborhood: v.name || "Seattle",
-          desc: (isSport ? "🏟️ " : isMusic ? "🎵 " : isArts ? "🎭 " : "") + e.name + (v.name ? " at " + v.name : "") + ". " + (pr ? "From $" + Math.round(pr) : ""),
-          kidFriendly: isFam, type: isSport ? "sports" : isMusic ? "concert" : isArts ? "show" : "event",
-          time: tm, emoji: isSport ? "🏟️" : isMusic ? "🎵" : isArts ? "🎭" : "🎟️",
+          name: e.name, neighborhood: venueName || "Seattle",
+          desc: (isSport ? "🏟️ " : isMusic ? "🎵 " : isArts ? "🎭 " : "🎤 ") + e.name + (venueName ? " at " + venueName : "") + ". " + (pr ? "From $" + Math.round(pr) : ""),
+          kidFriendly: isFam, type: category,
+          time: tm, emoji: isSport ? "🏟️" : isMusic ? "🎵" : isArts ? "🎭" : "🎤",
           isLive: true, isTeam: isTeam, url: e.url,
         };
-      });
+      }).filter(function(e) { return e !== null; });
     } catch(e) { return []; }
   }
 
@@ -357,8 +375,20 @@ export default function App() {
     } catch(e) { return null; }
   }
 
+  // ─── TMDB (NOW PLAYING MOVIES) ─────────────────────────────────────────────
+  async function fetchMovies() {
+    try {
+      var ctrl = new AbortController();
+      var tid = setTimeout(function() { ctrl.abort(); }, 6000);
+      var res = await fetch("/api/tmdb", { signal: ctrl.signal });
+      clearTimeout(tid);
+      var data = await res.json();
+      return data.results || [];
+    } catch(e) { return []; }
+  }
+
   // ─── LOCAL PLAN BUILDER ─────────────────────────────────────────────────────
-  function buildLocalPlan(wx, events, overrideWho, overrideTod, overrideMoods) {
+  function buildLocalPlan(wx, events, overrideWho, overrideTod, overrideMoods, movies) {
     var theWho = overrideWho || who;
     var theTod = overrideTod || timeOfDay;
     var theMoods = overrideMoods || moods;
@@ -380,34 +410,43 @@ export default function App() {
     var restos = DB.restaurants.concat(userSpots.filter(function(s) { return s.category === "restaurant"; }));
     var acts = DB.activities.concat(userSpots.filter(function(s) { return s.category === "activity"; }));
 
-    // Pick a neighborhood cluster for cohesion
-    var allSpots = bars.concat(restos).concat(acts);
-    var randomAnchor = allSpots[Math.floor(Math.random() * allSpots.length)];
+    // Apply audience filters FIRST (before clustering)
+    var filteredBars = isF ? bars.filter(function(b) { return b.kidFriendly; }) : isP ? bars.filter(function(b) { return ["upscale", "speakeasy", "craft"].includes(b.vibe); }) : bars;
+    var filteredRestos = restos.filter(function(r) {
+      if (isF && !r.kidFriendly) return false;
+      if (isP && (r.price === "$" || r.vibe === "casual")) return false;
+      return true;
+    });
+    var filteredActs = acts.filter(function(a) { return !isF || a.kidFriendly; });
+
+    // Pick a neighborhood cluster from audience-appropriate spots only
+    var eligibleSpots = filteredBars.concat(filteredRestos).concat(filteredActs);
+    var randomAnchor = eligibleSpots[Math.floor(Math.random() * eligibleSpots.length)];
     var cluster = getClusterForNeighborhood(randomAnchor.neighborhood);
 
-    // Filter to cluster (with fallback if too few results)
+    // Filter to cluster — check viability AFTER audience filtering
     function clusterFilter(arr) {
       if (!cluster) return arr;
       var filtered = arr.filter(function(item) { return isInCluster(item.neighborhood, cluster); });
-      return filtered.length >= 3 ? filtered : arr;
+      return filtered.length >= 2 ? filtered : arr;
     }
 
-    var cBars = clusterFilter(bars);
-    var cRestos = clusterFilter(restos);
-    var cActs = clusterFilter(acts);
+    var cBars = clusterFilter(filteredBars);
+    var cRestos = clusterFilter(filteredRestos);
+    var cActs = clusterFilter(filteredActs);
 
     // Determine active moods
-    var moodOrder = ["outdoor", "water", "picnic", "drinks", "food", "activity", "event", "stayin"];
+    var moodOrder = ["outdoor", "water", "picnic", "drinks", "food", "activity", "liveshow", "sports", "stayin"];
     var active;
 
     if (theMoods.includes("dealers")) {
       var options;
       if (isF) {
-        options = isLN ? ["food", "stayin"] : isAft ? ["food", "activity", "outdoor", "picnic"] : ["food", "activity", "stayin"];
+        options = isLN ? ["food", "stayin"] : isAft ? ["food", "activity", "outdoor", "picnic"] : ["food", "activity", "stayin", "liveshow"];
       } else if (isP) {
-        options = isLN ? ["drinks", "food", "event"] : isAft ? ["drinks", "food", "picnic", "water"] : ["drinks", "food", "activity", "event"];
+        options = isLN ? ["drinks", "food", "liveshow"] : isAft ? ["drinks", "food", "picnic", "water"] : ["drinks", "food", "activity", "liveshow"];
       } else {
-        options = isLN ? ["drinks", "food", "activity", "event"] : isAft ? ["drinks", "food", "activity", "outdoor", "water"] : ["drinks", "food", "activity", "event"];
+        options = isLN ? ["drinks", "food", "activity", "liveshow"] : isAft ? ["drinks", "food", "activity", "outdoor", "water"] : ["drinks", "food", "activity", "liveshow", "sports"];
       }
       // Seasonal boost: add boosted categories
       var boosts = season.boost || [];
@@ -430,19 +469,39 @@ export default function App() {
       active = active.filter(function(m) { return suppressed.indexOf(m) === -1; });
     }
 
-    // Inject live event if available
-    if (events && events.length > 0 && (theMoods.includes("event") || theMoods.includes("activity") || theMoods.includes("dealers"))) {
-      var sportsEv = events.filter(function(e) { return e.isTeam; });
-      var relEv = events.filter(function(e) { return !isF || e.kidFriendly; });
-      var injected = sportsEv[0] || (relEv.length > 0 ? relEv[0] : null);
-      if (injected) {
+    // Inject live events based on mood selection
+    var sportsEvents = (events || []).filter(function(e) { return e.type === "sports"; });
+    var showEvents = (events || []).filter(function(e) { return e.type === "liveshow"; });
+
+    // Live Sports: only if user picked sports or Dealer's Choice randomly includes it
+    if (sportsEvents.length > 0 && active.indexOf("sports") !== -1) {
+      var teamGames = sportsEvents.filter(function(e) { return e.isTeam; });
+      var sportsPick = teamGames[0] || sportsEvents[0];
+      if (sportsPick) {
+        // Sports builds the whole evening around the game
         stops.push({
-          name: injected.name, type: injected.type, emoji: injected.emoji,
-          time: injected.time || formatTime(hr), neighborhood: injected.neighborhood,
-          description: injected.desc, isLive: true, url: injected.url,
+          name: sportsPick.name, type: "sports", emoji: "🏟️",
+          time: sportsPick.time || formatTime(hr), neighborhood: sportsPick.neighborhood,
+          description: sportsPick.desc, isLive: true, url: sportsPick.url,
         });
         hr += 3;
-        active = active.filter(function(m) { return m !== "event" && m !== "activity"; });
+        // Remove sports and activity from remaining moods — game IS the activity
+        active = active.filter(function(m) { return m !== "sports" && m !== "activity"; });
+      }
+    }
+
+    // Live Show: inject as one stop within a multi-stop evening
+    if (showEvents.length > 0 && active.indexOf("liveshow") !== -1) {
+      var famFiltered = showEvents.filter(function(e) { return !isF || e.kidFriendly; });
+      var showPick = famFiltered.length > 0 ? famFiltered[Math.floor(Math.random() * famFiltered.length)] : null;
+      if (showPick) {
+        stops.push({
+          name: showPick.name, type: "liveshow", emoji: showPick.emoji || "🎶",
+          time: showPick.time || formatTime(hr), neighborhood: showPick.neighborhood,
+          description: showPick.desc, isLive: true, url: showPick.url,
+        });
+        hr += 2.5;
+        active = active.filter(function(m) { return m !== "liveshow"; });
       }
     }
 
@@ -451,30 +510,56 @@ export default function App() {
       var mood = active[idx];
 
       if (mood === "drinks") {
-        var bPool = isF ? cBars.filter(function(b) { return b.kidFriendly; }) : isP ? cBars.filter(function(b) { return ["upscale", "speakeasy", "craft"].includes(b.vibe); }) : cBars;
-        if (bPool.length > 0) {
-          var bar = pickRandom(bPool, used);
+        if (cBars.length > 0) {
+          var bar = pickRandom(cBars, used);
           stops.push({ name: bar.name, type: "drinks", emoji: "🍺", time: formatTime(hr), neighborhood: bar.neighborhood, description: bar.desc });
           hr += 1.5;
         }
       }
 
       if (mood === "food") {
-        var fPool = cRestos.filter(function(r) {
-          if (isF && !r.kidFriendly) return false;
-          if (isP && (r.price === "$" || r.vibe === "casual")) return false;
-          return true;
-        });
-        var resto = pickRandom(fPool.length > 0 ? fPool : cRestos, used);
-        stops.push({ name: resto.name, type: "food", emoji: "🍽️", time: formatTime(Math.round(hr)), neighborhood: resto.neighborhood, description: resto.desc, book: resto.book || null });
+        var resto = pickRandom(cRestos, used);
+        stops.push({ name: resto.name, type: "food", emoji: "🍽️", time: formatTime(Math.round(hr)), neighborhood: resto.neighborhood, description: resto.desc, book: resto.book || null, bookUrl: resto.bookUrl || null });
         hr += 1.5;
       }
 
-      if (mood === "activity" || mood === "event") {
-        var aPool = cActs.filter(function(a) { return !isF || a.kidFriendly; });
-        if (aPool.length > 0) {
-          var act = pickRandom(aPool, used);
-          stops.push({ name: act.name, type: act.type === "show" ? "event" : "activity", emoji: act.type === "show" ? "🎶" : "🎯", time: formatTime(Math.round(hr)), neighborhood: act.neighborhood || "Seattle", description: act.desc });
+      if (mood === "activity") {
+        // Sometimes inject a movie instead of a regular activity
+        var availableMovies = (movies || []).filter(function(m) {
+          if (!m.certification) return true;
+          if (isF) return m.certification === "G" || m.certification === "PG";
+          return m.certification === "PG-13" || m.certification === "R" || m.certification === "PG";
+        });
+        var useMovie = availableMovies.length > 0 && Math.random() > 0.5;
+
+        if (useMovie) {
+          var moviePick = availableMovies[Math.floor(Math.random() * availableMovies.length)];
+          // Pick an appropriate theater
+          var theaterPool = THEATERS.filter(function(t) {
+            if (isF && !t.kidFriendly) return false;
+            if (isP && t.vibe === "date") return true;
+            return true;
+          });
+          // Prefer date-vibe theaters for partner mode
+          if (isP) {
+            var dateTheaters = theaterPool.filter(function(t) { return t.vibe === "date"; });
+            if (dateTheaters.length > 0) theaterPool = dateTheaters;
+          }
+          var theater = theaterPool[Math.floor(Math.random() * theaterPool.length)];
+          var cert = moviePick.certification ? " (" + moviePick.certification + ")" : "";
+          var score = moviePick.rating ? " ⭐ " + moviePick.rating + "/10" : "";
+          stops.push({
+            name: moviePick.title + cert,
+            type: "movie", emoji: "🎬",
+            time: formatTime(Math.round(hr)),
+            neighborhood: theater.name,
+            description: moviePick.overview + score + " — " + theater.desc,
+            fandangoUrl: fandangoUrl(moviePick.title, theater.name),
+          });
+          hr += 2.5;
+        } else if (cActs.length > 0) {
+          var act = pickRandom(cActs, used);
+          stops.push({ name: act.name, type: act.type === "show" ? "liveshow" : "activity", emoji: act.type === "show" ? "🎶" : "🎯", time: formatTime(Math.round(hr)), neighborhood: act.neighborhood || "Seattle", description: act.desc });
           hr += 2;
         }
       }
@@ -533,8 +618,8 @@ export default function App() {
 
     // Fallback if somehow empty
     if (stops.length === 0) {
-      var fb = pickRandom(bars, used);
-      var fa = pickRandom(acts, used);
+      var fb = pickRandom(filteredBars.length > 0 ? filteredBars : bars, used);
+      var fa = pickRandom(filteredActs.length > 0 ? filteredActs : acts, used);
       stops.push(
         { name: fb.name, type: "drinks", emoji: "🍺", time: formatTime(baseH), neighborhood: fb.neighborhood, description: fb.desc },
         { name: fa.name, type: "activity", emoji: "🎯", time: formatTime(baseH + 2), neighborhood: fa.neighborhood || "Seattle", description: fa.desc }
@@ -582,13 +667,15 @@ export default function App() {
     setLoading(true);
     setPlanSaved(false);
 
-    var results = await Promise.all([fetchEvents(planDate), fetchWeather(planDate)]);
+    var results = await Promise.all([fetchEvents(planDate), fetchWeather(planDate), fetchMovies()]);
     var events = results[0];
     var wx = results[1];
+    var movies = results[2];
     setLiveEvents(events);
     setWeather(wx);
+    setNowPlaying(movies);
 
-    var localPlan = buildLocalPlan(wx, events);
+    var localPlan = buildLocalPlan(wx, events, null, null, null, movies);
     var finalPlan = localPlan;
 
     // Try Claude API upgrade
@@ -596,7 +683,7 @@ export default function App() {
       var aud = who === "partner" ? "date night with wife" : who === "friends" ? "guys night with buddies" : "family night with kids";
       var evStr = events.length > 0 ? "\nLIVE EVENTS: " + JSON.stringify(events.slice(0, 5).map(function(e) { return { name: e.name, venue: e.neighborhood, time: e.time }; })) : "";
       var wxStr = wx ? "\nWEATHER: " + wx.label + ", " + wx.hi + "F" + (wx.isRainy ? " RAINY" : "") : "";
-      var prompt = "You are Man-Date for Seattle dads. Build a " + moods.join("+") + " plan for " + aud + ". Time: " + (timeOfDay || "evening") + "." + wxStr + evStr + "\nPick 2-4 stops. Fun descriptions. ONLY JSON:\n{\"title\":\"3-5 words\",\"tagline\":\"witty one-liner\",\"stops\":[{\"name\":\"Venue\",\"type\":\"food|drinks|activity|event|sports|outdoor|water|picnic|stayin\",\"emoji\":\"emoji\",\"time\":\"7:00 PM\",\"neighborhood\":\"Area\",\"description\":\"1-2 sentences\",\"isLive\":false}]}";
+      var prompt = "You are Man-Date for Seattle dads. Build a " + moods.join("+") + " plan for " + aud + ". Time: " + (timeOfDay || "evening") + "." + wxStr + evStr + "\nPick 2-4 stops. Fun descriptions. ONLY JSON:\n{\"title\":\"3-5 words\",\"tagline\":\"witty one-liner\",\"stops\":[{\"name\":\"Venue\",\"type\":\"food|drinks|activity|liveshow|sports|outdoor|water|picnic|stayin\",\"emoji\":\"emoji\",\"time\":\"7:00 PM\",\"neighborhood\":\"Area\",\"description\":\"1-2 sentences\",\"isLive\":false}]}";
       var data = await callClaude({ model: "claude-sonnet-4-20250514", max_tokens: 600, messages: [{ role: "user", content: prompt }] });
       if (data && data.content) {
         var text = data.content.filter(function(i) { return i.type === "text"; }).map(function(i) { return i.text; }).join("\n");
@@ -625,7 +712,7 @@ export default function App() {
     setFadeIn(false);
     setPlanSaved(false);
     await new Promise(function(r) { setTimeout(r, 150); });
-    setPlan(buildLocalPlan(weather, liveEvents));
+    setPlan(buildLocalPlan(weather, liveEvents, null, null, null, nowPlaying));
     setFadeIn(true);
   }
 
@@ -674,7 +761,7 @@ export default function App() {
 
   var whoLabel = who === "partner" ? "💑 Date Night" : who === "friends" ? "🍻 The Boys" : "👨‍👩‍👧‍👦 Family";
   var todLabel = timeOfDay === "afternoon" ? "☀️ Afternoon" : timeOfDay === "latenight" ? "🌙 Late Night" : "🌆 Evening";
-  var moodLabels = { food: "🍽️ Food", drinks: "🍺 Drinks", activity: "🎯 Activity", event: "🎶 Event", stayin: "🏡 Stay In", outdoor: "🌲 Outdoor", water: "🚣 Water", picnic: "🧺 Picnic", dealers: "🎲 Dealer's Choice" };
+  var moodLabels = { food: "🍽️ Food", drinks: "🍺 Drinks", activity: "🎯 Activity", liveshow: "🎶 Live Show", sports: "🏟️ Live Sports", stayin: "🏡 Stay In", outdoor: "🌲 Outdoor", water: "🚣 Water", picnic: "🧺 Picnic", dealers: "🎲 Dealer's Choice" };
 
   // ─── RENDER ─────────────────────────────────────────────────────────────────
   return (
@@ -796,9 +883,10 @@ export default function App() {
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", marginBottom: "10px" }}>
               {[
                 { k: "food", e: "🍽️", l: "Food" }, { k: "drinks", e: "🍺", l: "Drinks" },
-                { k: "activity", e: "🎯", l: "Activity" }, { k: "event", e: "🎶", l: "Live Event" },
-                { k: "stayin", e: "🏡", l: "Stay In" }, { k: "outdoor", e: "🌲", l: "Outdoor" },
-                { k: "water", e: "🚣", l: "On the Water" }, { k: "picnic", e: "🧺", l: "Picnic" },
+                { k: "activity", e: "🎯", l: "Activity" }, { k: "liveshow", e: "🎶", l: "Live Show" },
+                { k: "sports", e: "🏟️", l: "Live Sports" }, { k: "stayin", e: "🏡", l: "Stay In" },
+                { k: "outdoor", e: "🌲", l: "Outdoor" }, { k: "water", e: "🚣", l: "On the Water" },
+                { k: "picnic", e: "🧺", l: "Picnic" },
               ].map(function(m, i) {
                 return (
                   <div key={m.k} className={"su d" + Math.min(i + 3, 7)} style={Object.assign({}, moods.includes(m.k) ? crdSel : crd, { textAlign: "center", padding: "14px 8px" })} onClick={function() { toggleMood(m.k); }}>
@@ -880,19 +968,22 @@ export default function App() {
                           <a href={mapsUrl(s.name, s.neighborhood)} target="_blank" rel="noopener" onClick={function(e) { e.stopPropagation(); }} style={{ fontSize: "11px", color: COL.muted, textDecoration: "none" }}>📍 Map · Hours</a>
                         )}
                         {s.book === "tock" && (
-                          <a href={tockUrl(s.name)} target="_blank" rel="noopener" onClick={function(e) { e.stopPropagation(); }} style={{ fontSize: "11px", color: "#2D7FF9", textDecoration: "none", fontWeight: 600 }}>Book on Tock</a>
+                          <a href={s.bookUrl || tockUrl(s.name)} target="_blank" rel="noopener" onClick={function(e) { e.stopPropagation(); }} style={{ fontSize: "11px", color: "#2D7FF9", textDecoration: "none", fontWeight: 600 }}>Book on Tock</a>
                         )}
                         {s.book === "resy" && (
-                          <a href={resyUrl(s.name)} target="_blank" rel="noopener" onClick={function(e) { e.stopPropagation(); }} style={{ fontSize: "11px", color: "#E84040", textDecoration: "none", fontWeight: 600 }}>Reserve on Resy</a>
+                          <a href={s.bookUrl || resyUrl(s.name)} target="_blank" rel="noopener" onClick={function(e) { e.stopPropagation(); }} style={{ fontSize: "11px", color: "#E84040", textDecoration: "none", fontWeight: 600 }}>Reserve on Resy</a>
                         )}
                         {s.book === "opentable" && (
-                          <a href={openTableUrl(s.name)} target="_blank" rel="noopener" onClick={function(e) { e.stopPropagation(); }} style={{ fontSize: "11px", color: "#DA3743", textDecoration: "none", fontWeight: 600 }}>OpenTable</a>
+                          <a href={s.bookUrl || openTableUrl(s.name)} target="_blank" rel="noopener" onClick={function(e) { e.stopPropagation(); }} style={{ fontSize: "11px", color: "#DA3743", textDecoration: "none", fontWeight: 600 }}>OpenTable</a>
                         )}
                         {s.book === "doordash" && (
-                          <a href={doordashUrl(s.name)} target="_blank" rel="noopener" onClick={function(e) { e.stopPropagation(); }} style={{ fontSize: "11px", color: "#FF3008", textDecoration: "none", fontWeight: 600 }}>Order DoorDash</a>
+                          <a href={s.bookUrl || doordashUrl(s.name)} target="_blank" rel="noopener" onClick={function(e) { e.stopPropagation(); }} style={{ fontSize: "11px", color: "#FF3008", textDecoration: "none", fontWeight: 600 }}>Order DoorDash</a>
                         )}
                         {s.book === "walkin" && s.type === "food" && (
                           <span style={{ fontSize: "11px", color: COL.dim }}>Walk-in friendly</span>
+                        )}
+                        {s.type === "movie" && s.fandangoUrl && (
+                          <a href={s.fandangoUrl} target="_blank" rel="noopener" onClick={function(e) { e.stopPropagation(); }} style={{ fontSize: "11px", color: "#FF6600", textDecoration: "none", fontWeight: 600 }}>🎟️ Get Tickets</a>
                         )}
                       </div>
                     </div>
