@@ -715,6 +715,12 @@ export default function App() {
           if (jsonMatch) {
             var parsed = JSON.parse(jsonMatch[0]);
             if (parsed.stops && parsed.stops.length > 0) {
+              // Preserve live events and movie stops from local plan — Claude doesn't have this data
+              var liveStops = localPlan.stops.filter(function(s) { return s.isLive || s.type === "movie"; });
+              var claudeStops = parsed.stops.filter(function(s) { return !s.isLive && s.type !== "movie"; });
+              // Merge: live/movie stops first, then Claude's picks, cap at 4
+              var mergedStops = liveStops.concat(claudeStops).slice(0, 4);
+              parsed.stops = mergedStops;
               parsed.budget = estimateBudget(parsed.stops);
               parsed.season = getCurrentSeason();
               finalPlan = parsed;
