@@ -455,7 +455,11 @@ export default function App() {
       if (isP && (r.price === "$" || r.vibe === "casual")) return false;
       return true;
     });
-    var filteredActs = acts.filter(function(a) { return !isF || a.kidFriendly; });
+    var filteredActs = acts.filter(function(a) {
+      if (isF && !a.kidFriendly) return false;
+      if (a.dateOnly && !isP) return false;
+      return true;
+    });
 
     // Pick initial cluster — will be re-anchored if a live event is injected
     var eligibleSpots = filteredBars.concat(filteredRestos).concat(filteredActs);
@@ -565,6 +569,9 @@ export default function App() {
           var bar = pickRandom(cBars, used);
           stops.push({ name: bar.name, type: "drinks", emoji: "🍺", time: formatTime(hr), neighborhood: bar.neighborhood, description: bar.desc });
           hr += 1.5;
+          // Re-anchor cluster around the bar
+          var barCluster = getClusterForNeighborhood(bar.neighborhood);
+          if (barCluster) { cluster = barCluster; applyClustering(); }
         }
       }
 
@@ -581,6 +588,9 @@ export default function App() {
         var foodDesc = isTakeout ? "Grab takeout from " + resto.name + ". " + resto.desc : resto.desc;
         stops.push({ name: resto.name, type: "food", emoji: foodEmoji, time: formatTime(Math.round(hr)), neighborhood: resto.neighborhood, description: foodDesc, book: resto.book || null, bookUrl: resto.bookUrl || null, isTakeout: isTakeout });
         hr += isTakeout ? 0.5 : 1.5;
+        // Re-anchor cluster around the restaurant
+        var foodCluster = getClusterForNeighborhood(resto.neighborhood);
+        if (foodCluster) { cluster = foodCluster; applyClustering(); }
       }
 
       if (mood === "activity") {
@@ -588,6 +598,9 @@ export default function App() {
           var act = pickRandom(cActs, used);
           stops.push({ name: act.name, type: act.type === "show" ? "liveshow" : "activity", emoji: act.type === "show" ? "🎶" : "🎯", time: formatTime(Math.round(hr)), neighborhood: act.neighborhood || "Seattle", description: act.desc });
           hr += 2;
+          // Re-anchor cluster around the activity
+          var actCluster = getClusterForNeighborhood(act.neighborhood);
+          if (actCluster) { cluster = actCluster; applyClustering(); }
         }
       }
 
@@ -991,7 +1004,11 @@ export default function App() {
         {step === "splash" && (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flex: 1, textAlign: "center", gap: "12px" }}>
             <div className="su d1" style={{ fontSize: "64px" }}>📅</div>
-            <h1 className="su d2" style={logo("56px")}>MAN-DATE</h1>
+            <h1 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: "56px", letterSpacing: "5px", margin: 0, lineHeight: 1 }}>
+              {"MAN-DATE".split("").map(function(ch, i) {
+                return <span key={i} className="logo-letter logo-text" style={{ animationDelay: (0.15 + i * 0.06) + "s" }}>{ch}</span>;
+              })}
+            </h1>
             <p className="su d3" style={{ color: COL.muted, fontSize: "17px", lineHeight: 1.5, maxWidth: "300px", margin: 0 }}>
               Stop Googling. Start doing.<br />
               <span style={{ fontSize: "14px", color: COL.dim }}>Built for dads who want better than pizza.</span>
