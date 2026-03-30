@@ -1004,9 +1004,9 @@ export default function App() {
         {step === "splash" && (
           <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flex: 1, textAlign: "center", gap: "12px" }}>
             <div className="su d1" style={{ fontSize: "64px" }}>📅</div>
-            <h1 style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: "56px", letterSpacing: "5px", margin: 0, lineHeight: 1 }}>
+            <h1 className="logo-wrap" style={{ fontFamily: "'Bebas Neue', sans-serif", fontSize: "56px", letterSpacing: "5px", margin: 0, lineHeight: 1 }}>
               {"MAN-DATE".split("").map(function(ch, i) {
-                return <span key={i} className="logo-letter logo-text" style={{ animationDelay: (0.15 + i * 0.06) + "s" }}>{ch}</span>;
+                return <span key={i} className="logo-letter" style={{ animationDelay: (0.15 + i * 0.06) + "s" }}>{ch}</span>;
               })}
             </h1>
             <p className="su d3" style={{ color: COL.muted, fontSize: "17px", lineHeight: 1.5, maxWidth: "300px", margin: 0 }}>
